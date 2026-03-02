@@ -5,11 +5,14 @@
   "author": "Goldsmiths UAL",
   "license": "MIT",
   "scripts": {
-    "dev": "npx live-server --port=3000 --open=index.html",
-    "start": "npx serve . -p 3000"
+    "start": "node app.js",
+    "dev": "node app.js"
   },
   "devDependencies": {
     "live-server": "^1.2.2",
     "serve": "^14.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
   }
 }

@@ -1,4 +1,9 @@
 # AKASHA — Oracle Data Visualization
 Big Data, Small Data · Goldsmiths UAL
 
-Open `index.html` in any browser, or visit the live site via GitHub Pages.
+## Run
+Open `index.html` directly in any browser, or:
+```
+npm install
+npm run dev
+```
