@@ -1,12 +1,5 @@
-// ─────────────────────────────────────────────────────────────
 // AKASHA · main.js
-// ─────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────
-// 1. COSMOS BACKGROUND CANVAS
-// Three layers: nebulae (RadialGradient ellipses) + stars (Arc + sin opacity)
-// + meteors (LinearGradient lines). Driven by requestAnimationFrame at ~60fps.
-// ─────────────────────────────────────────────────────────────
 (function cosmosBackground() {
   const cvs = document.getElementById('cosmos-canvas');
   const ctx = cvs.getContext('2d');
@@ -57,23 +50,12 @@
   window.addEventListener('resize',resize); resize(); draw();
 })();
 
-// ─────────────────────────────────────────────────────────────
-// 2. djb2 HASH — same string → always the same integer
-// ─────────────────────────────────────────────────────────────
+// djb2 hash — same string always returns the same integer
 function djb2(str){let h=5381;for(let i=0;i<str.length;i++)h=((h<<5)+h)+str.charCodeAt(i)&0x7fffffff;return h;}
 
-// ─────────────────────────────────────────────────────────────
-// 3. LINEAR CONGRUENTIAL PRNG
-// s = (s * 9301 + 49297) mod 233280  → returns [0, 1)
-// Same seed + same call order = completely identical sequence
-// ─────────────────────────────────────────────────────────────
+// LCG PRNG — same seed + same call order = identical sequence
 function seededRng(seed){let s=seed;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
 
-// ─────────────────────────────────────────────────────────────
-// 4. WIKIPEDIA REST API (CORS: origin=* — no proxy needed)
-// Step 1: search for best matching article title
-// Step 2: fetch full article plaintext
-// ─────────────────────────────────────────────────────────────
 async function fetchWikipedia(query){
   const sd=await(await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=5`)).json();
   if(!sd.query.search.length)throw new Error('No Wikipedia results found — try a different question');
@@ -83,20 +65,10 @@ async function fetchWikipedia(query){
   return{title:page.title,extract:page.extract||'',url:`https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`};
 }
 
-// ─────────────────────────────────────────────────────────────
-// 5. WORD FREQUENCY ANALYSIS + WEIGHTED KEYWORD SELECTION
-// TF = raw count of each word after stop-word filtering
-// Weighted random: high-frequency words more likely to be chosen,
-// but the seed controls exactly which ones — deterministic every time.
-// This is where the "oracle's" apparent wisdom comes from:
-// the data shapes the probability distribution, the seed picks the result.
-// ─────────────────────────────────────────────────────────────
 const STOP=new Set('the be to of and a in that have it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us was were been has had is are am did does more through during before above below between each few such those being while upon much many still own under last long great little world every found since again here further once i with been have not'.split(' '));
 
-// A small bias lexicon of *abstract* themes.
-// NOTE: This is NOT a data source — the final theme word is always selected
-// from words that actually appear in the scraped Wikipedia article.
-// The lexicon only nudges selection toward broad, interpretable words.
+// Abstract-concept bias — nudges selection toward interpretable words.
+// The final word is always sourced from the Wikipedia article itself.
 const ABSTRACT=new Set([
   "trust","care","control","change","choice","hope","fear","desire","pressure","boundary",
   "patience","timing","loss","grief","growth","belonging","identity","silence","conflict",
@@ -117,17 +89,15 @@ function normalizeWords(str){
 function pickThemeWord(keywords,question,seed){
   const rng=seededRng(seed+99);
   const qWords=new Set(normalizeWords(question).filter(w=>w.length>2));
-  // Score ONLY among extracted keyword candidates (all from Wikipedia text)
   const scored=keywords.map(k=>{
     const w=k.word;
-    let score=k.freq;                 // relevance from Wikipedia
-    if(qWords.has(w)) score+=6;       // question overlap → stronger perceived link
-    if(ABSTRACT.has(w)) score+=10;    // abstract bias → more "answer-book" readable
+    let score=k.freq;
+    if(qWords.has(w)) score+=6;
+    if(ABSTRACT.has(w)) score+=10;
     if(w.endsWith("tion")||w.endsWith("ment")||w.endsWith("ness")) score+=2;
-    score+=rng()*0.5;                // deterministic tiny tie-break
+    score+=rng()*0.5;
     return {word:w,score};
   }).sort((a,b)=>b.score-a.score);
-
   return scored[0]?.word || (keywords[0]?.word || "clarity");
 }
 
@@ -145,10 +115,6 @@ function extractKeywords(text,seed,count=12){
   return sel.map(([word,freq])=>({word,freq}));
 }
 
-// ─────────────────────────────────────────────────────────────
-// 6. DATA → VISUAL PARAMETER MAPPING
-// Every visual property traces back to a real Wikipedia data field.
-// ─────────────────────────────────────────────────────────────
 function computeMapping(keywords,seed){
   const rng=seededRng(seed+1);
   const avgLen=keywords.reduce((s,k)=>s+k.word.length,0)/(keywords.length||1);
@@ -156,35 +122,15 @@ function computeMapping(keywords,seed){
   const scales=['Pentatonic','Phrygian','Dorian','Lydian','Chromatic','Harmonic Minor','Whole Tone'];
   const timbres=['FMSynth (ethereal)','AMSynth (pulsing)','PolySynth (harmonic)','MetalSynth (crystalline)','MembraneSynth (percussive)'];
   return{
-    bpm:Math.round(55+(totalFreq%75)),      // total keyword frequency → BPM
-    scale:scales[Math.floor(rng()*scales.length)],  // seed → scale
+    bpm:Math.round(55+(totalFreq%75)),
+    scale:scales[Math.floor(rng()*scales.length)],
     timbre:timbres[Math.floor(rng()*timbres.length)],
-    reverb:(avgLen*0.38).toFixed(1),        // avg word length → reverb decay
+    reverb:(avgLen*0.38).toFixed(1),
     voices:Math.min(Math.max(Math.round(keywords.length/3),2),5),
-    hue:Math.round(seed%360),               // seed → colour hue
+    hue:Math.round(seed%360),
   };
 }
 
-// ─────────────────────────────────────────────────────────────
-// 7. MAIN VISUALIZATION CANVAS — 5-layer architecture
-//
-// Layer 0: Deep-space background gradient + slow rotating rays
-// Layer 1: Flow-field particles
-//   angle = sin(x/scale + phase + t) * cos(y/scale + t) * 2π
-//   Simplified Perlin noise field — particles drift along "wind direction"
-//   and respawn at random positions when their life expires.
-// Layer 2: Pulsing energy rings
-//   Rotating dashed circles; count/spacing/rotation direction from seed.
-//   Opacity pulsed via sin(t).
-// Layer 3: Keyword constellation
-//   Keywords as nodes — size ∝ word frequency.
-//   Nodes within threshold distance are connected by lines.
-//   Colour tiers: high-freq = gold, mid = cyan, lower = violet.
-// Layer 4: Central mandala
-//   6-spoke (forward rotation) + inner triangle (reverse) = rotating sigil.
-// Layer 5: Word labels
-//   Label above node if node.y < centre, otherwise below.
-// ─────────────────────────────────────────────────────────────
 let vizAF=null;
 
 function renderVisualization(keywords,seed,mapping,containerEl){
@@ -229,10 +175,12 @@ function renderVisualization(keywords,seed,mapping,containerEl){
     bg.addColorStop(0,'rgba(20,16,60,0.98)'); bg.addColorStop(0.5,'rgba(10,8,32,0.99)'); bg.addColorStop(1,'rgba(4,4,15,1)');
     ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
 
+    // Background rays
     ctx.save(); ctx.translate(cx,cy); ctx.rotate(t*0.0012);
     for(let i=0;i<12;i++){const a=(i/12)*Math.PI*2; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*Math.max(W,H),Math.sin(a)*Math.max(W,H)); ctx.strokeStyle='rgba(200,168,75,0.022)'; ctx.lineWidth=1; ctx.stroke();}
     ctx.restore();
 
+    // Flow-field particles: angle = sin(x/S+φ+t) × cos(y/S+t) × 2π
     pts.forEach(p=>{
       const ang=Math.sin(p.x/SCALE+p.phase+t*0.004)*Math.cos(p.y/SCALE+t*0.003)*Math.PI*2;
       p.x+=Math.cos(ang)*p.spd; p.y+=Math.sin(ang)*p.spd; p.life-=0.004;
@@ -241,6 +189,7 @@ function renderVisualization(keywords,seed,mapping,containerEl){
       ctx.fillStyle=`rgba(${p.col},${(p.life/p.maxL)*0.38})`; ctx.fill();
     });
 
+    // Energy rings
     rings.forEach(ring=>{
       ring.phase+=ring.spd;
       ctx.save(); ctx.translate(cx,cy); ctx.rotate(ring.phase);
@@ -250,17 +199,18 @@ function renderVisualization(keywords,seed,mapping,containerEl){
       ctx.lineWidth=0.9; ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     });
 
+    // Constellation edges
     const CDIST=Math.min(W,H)*0.33;
     for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
       const a=nodes[i],b=nodes[j],d=Math.hypot(a.x-b.x,a.y-b.y);
       if(d<CDIST){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=`rgba(200,168,75,${(1-d/CDIST)*0.2})`;ctx.lineWidth=0.5;ctx.stroke();}
     }
 
+    // Central mandala
     const mR=Math.min(W,H)*0.1;
     const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,mR*3);
     cg.addColorStop(0,'rgba(200,168,75,0.22)');cg.addColorStop(0.4,'rgba(77,217,232,0.07)');cg.addColorStop(1,'rgba(200,168,75,0)');
     ctx.beginPath();ctx.arc(cx,cy,mR*3,0,Math.PI*2);ctx.fillStyle=cg;ctx.fill();
-
     ctx.save();ctx.translate(cx,cy);ctx.rotate(t*0.004);
     for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2; ctx.beginPath();ctx.moveTo(Math.cos(a)*mR*0.48,Math.sin(a)*mR*0.48);ctx.lineTo(Math.cos(a)*mR,Math.sin(a)*mR);ctx.strokeStyle=`rgba(200,168,75,${0.48+0.28*Math.sin(t*0.05)})`;ctx.lineWidth=1;ctx.stroke();}
     ctx.rotate(-t*0.009);
@@ -270,6 +220,7 @@ function renderVisualization(keywords,seed,mapping,containerEl){
     ctx.restore();
     ctx.beginPath();ctx.arc(cx,cy,3.5,0,Math.PI*2);ctx.fillStyle='rgba(200,168,75,0.95)';ctx.fill();
 
+    // Keyword nodes + labels (node size ∝ word frequency)
     nodes.forEach((n,i)=>{
       n.pulse+=0.045;
       n.x=n.ox+Math.sin(t*0.009+i*1.1)*5.5;
@@ -293,10 +244,6 @@ function renderVisualization(keywords,seed,mapping,containerEl){
   draw();
 }
 
-// ─────────────────────────────────────────────────────────────
-// 8. FREQUENCY BAR CHART RENDERER
-// width:0 → delayed set to width:x% triggers CSS transition animation
-// ─────────────────────────────────────────────────────────────
 function renderFreqBars(keywords){
   const c=document.getElementById('freq-bars');c.innerHTML='';
   const maxF=keywords[0]?.freq||1;
@@ -309,21 +256,10 @@ function renderFreqBars(keywords){
   });
 }
 
-// ─────────────────────────────────────────────────────────────
-// 9. ORACLE PRONOUNCEMENT GENERATOR
-// Keywords fill sentence templates via seeded PRNG selection.
-// Answer-Book style: direct, short, personal-feeling.
-// The meaning you read into it is yours — not the data's.
-// ─────────────────────────────────────────────────────────────
 function generatePronounc(keywords,seed,question){
-  // "Answer-book" mode: return ONE broad theme word.
-  // Always chosen from scraped Wikipedia keywords; seeded + biased toward abstract terms.
-  return pickThemeWord(keywords, question, seed);
+  return pickThemeWord(keywords,question,seed);
 }
 
-// ─────────────────────────────────────────────────────────────
-// MAIN FLOW
-// ─────────────────────────────────────────────────────────────
 let currentState=null,loadingInterval=null;
 const MSGS=['CONSULTING THE AKASHIC RECORDS...','EXTRACTING SEMANTIC PATTERNS...','COMPUTING DESTINY COEFFICIENTS...','WEAVING THE CONSTELLATION...','THE ORACLE STIRS...','TRAVERSING PROBABILITY FIELDS...','DECODING THE SIGNAL...'];
 
